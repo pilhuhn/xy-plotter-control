@@ -2,6 +2,9 @@
 package de.bsd.plottercontrol;
 
 import gnu.io.NRSerialPort;
+
+import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,18 +14,51 @@ import java.io.OutputStream;
  */
 public class PlotterComm {
 
-  private final OutputStream outputStream;
-  private final InputStream inputStream;
+  private static final long DEFAULT_STEPS_PER_MM = 160; // See plotter firmware
+  private OutputStream outputStream;
+  private InputStream inputStream;
 
-  private final NRSerialPort serial;
+  private NRSerialPort serial;
+  private boolean started = false;
+
+  PlotterComm() {
+
+    String port = getPort();
+    start(port);
+  }
 
   PlotterComm(String port) {
+    start(port);
+  }
+
+
+  private String getPort() {
+    // Next code is on macOS. Will be different on Linux/Windows
+    File file = new File("/dev");
+    if (!file.isDirectory()) {
+      throw new IllegalStateException("/dev is not a directory");
+    }
+    String[] files = file.list(new FilenameFilter() {
+      @Override
+      public boolean accept(File dir, String name) {
+        return name.startsWith("cu.usbmodem");
+      }
+    });
+    if (files.length!=1) {
+      throw new IllegalStateException("Can't determine the correct port");
+    }
+    String port = "/dev/" + files[0];
+    return port;
+  }
+
+
+  private void start(String port)  {
 
     int baudRate = 115200;
 
     serial = new NRSerialPort(port, baudRate);
     serial.connect();
-    System.out.println("Serial connected: " + serial.isConnected());
+    System.out.println("Is serial connected: " + serial.isConnected());
 
     if (!serial.isConnected()) {
       throw new RuntimeException("Can't talk to plotter");
@@ -30,17 +66,39 @@ public class PlotterComm {
 
     outputStream = serial.getOutputStream();
     inputStream = serial.getInputStream();
+    try {
+      int count = inputStream.available();
+      if (count>0) {
+        System.out.println("Got reply " + readLineFromStream(inputStream));
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
 
+    started = true;
   }
 
   void penDown() throws IOException {
-    send("d\n");
+    if (!started) {
+      send("d\n");
+    } else {
+      send("D\n");
+    }
+    try {
+      readNDisplay(true);
+    } catch (InterruptedException e) {
+      e.printStackTrace();  // TODO: Customise this generated block
+    }
   }
 
   void penUp() throws IOException {
 
     try {
-      send("u\n");
+      if (!started) {
+        send("u\n");
+      } else {
+        send("U\n");
+      }
       readNDisplay(true);
       Thread.sleep(200);
     } catch (Exception e) {
@@ -57,7 +115,11 @@ public class PlotterComm {
       prefix = "||-> ";
     }
 
-    System.out.println(prefix + string);
+    if (string.endsWith("\n")) {
+      System.out.print(prefix + string);
+    } else {
+      System.out.println(prefix + string);
+    }
     System.out.flush();
     outputStream.write(string.getBytes());
     outputStream.flush();
@@ -127,11 +189,20 @@ public class PlotterComm {
   }
 
   void sendStartCommand(boolean dryRun) throws IOException, InterruptedException {
+    sendStartCommand(dryRun,DEFAULT_STEPS_PER_MM);
+  }
+
+  public void sendStartCommand(boolean dryRun, long resStepsPerMM) throws IOException, InterruptedException {
     readNDisplay(true);
+    send("r"+resStepsPerMM);
+    readNDisplay(true);
+
     sendStart(dryRun);
 
     readNDisplay(true);
+
   }
+
 
   StringBuilder flushRemainingData(StringBuilder sb) throws IOException, InterruptedException {
     if (sb.length()>0) {
@@ -158,4 +229,17 @@ public class PlotterComm {
     }
     return buffer;
   }
+
+  public void flush() throws IOException, InterruptedException {
+    send("\n");
+    readNDisplay(true);
+  }
+
+  public void close() throws IOException {
+    outputStream.flush();
+    outputStream.close();
+    inputStream.close();
+    serial.disconnect();
+  }
+
 }

@@ -12,8 +12,7 @@ public class PatternTest {
 
   public static void main(String[] args) throws Exception {
 
-    pc = new PlotterComm("/dev/cu.usbmodem14622301");
-
+    pc = new PlotterComm();
 
     PatternTest pt = new PatternTest();
     pt.run();

@@ -21,7 +21,7 @@ public class KochKurve {
   public static void main(String[] args) throws Exception {
 
 
-    PlotterComm pc = new PlotterComm("/dev/cu.usbmodem14522441");
+    PlotterComm pc = new PlotterComm();
 
     System.out.println("Press RETURN to start");
     System.in.read();

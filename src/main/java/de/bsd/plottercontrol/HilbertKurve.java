@@ -14,8 +14,7 @@ public class HilbertKurve {
   }
 
   public static void main(String[] args) {
-    PlotterComm pc = new PlotterComm("/dev/cu.usbmodem14522441" +
-                                         "");
+    PlotterComm pc = new PlotterComm();
     try {
       HilbertKurve kk = new HilbertKurve(pc);
       kk.paint();
@@ -46,8 +45,8 @@ public class HilbertKurve {
     System.out.println("Press RETURN to start");
     System.in.read();
 
-    pc.penDown();
     pc.sendStartCommand(false);
+    pc.penDown();
 
     // Start-Punkt
     int aXY = (int) Math.pow(2,8-depth);
